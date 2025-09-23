@@ -1,0 +1,5 @@
+loguru
+swarms
+pydantic
+fastapi
+uvicorn>=0.29.0

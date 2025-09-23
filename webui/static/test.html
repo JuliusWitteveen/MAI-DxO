@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>JavaScript Test</title>
+</head>
+<body>
+    <h1>JavaScript Test Page</h1>
+    <button id="test-btn">Click Me</button>
+    <div id="output"></div>
+    
+    <h2>API Key Test</h2>
+    <button id="api-test">Test API Modal</button>
+    <div id="api-modal" class="hidden" style="position: fixed; top: 50px; left: 50px; background: white; border: 2px solid black; padding: 20px;">
+        <h3>Mock API Modal</h3>
+        <button id="close-modal">Close</button>
+    </div>
+    
+    <style>
+        .hidden { display: none; }
+    </style>
+    
+    <script>
+        console.log('Test page loaded');
+        
+        // Test basic JavaScript
+        document.getElementById('test-btn').addEventListener('click', function() {
+            document.getElementById('output').innerHTML = 'JavaScript is working!';
+            console.log('Button clicked!');
+        });
+        
+        // Test modal functionality
+        document.getElementById('api-test').addEventListener('click', function() {
+            console.log('API button clicked');
+            document.getElementById('api-modal').classList.remove('hidden');
+        });
+        
+        document.getElementById('close-modal').addEventListener('click', function() {
+            document.getElementById('api-modal').classList.add('hidden');
+        });
+    </script>
+</body>
+</html>

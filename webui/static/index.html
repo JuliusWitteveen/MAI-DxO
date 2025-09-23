@@ -1,0 +1,357 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>MAI Diagnostic Orchestrator — Advanced</title>
+  <link rel="stylesheet" href="/static/style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script defer src="/static/app_simple.js"></script>
+  <!-- Original: <script defer src="/static/app.js"></script> -->
+  <script>
+    window.MAI_DXO_DEFAULTS = {
+      model_name: 'gpt-4o',
+      max_iterations: 10,
+      mode: 'no_budget'
+    };
+  </script>
+</head>
+<body>
+  <div class="header" role="banner">
+    <h1>MAI Diagnostic Orchestrator</h1>
+    <div class="header-controls" role="group" aria-label="Global controls">
+       <button class="header-btn" id="api-key-btn">🔑 API Keys</button>
+      <div class="control-group">
+        <label class="control-label" for="globalModel">Global Model</label>
+        <div class="dropdown-menu" id="globalModel">
+          <div class="dropdown-button" aria-haspopup="listbox" aria-expanded="false">
+            <span data-model-id="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet</span>
+            <span class="dropdown-arrow">▼</span>
+          </div>
+          <div class="dropdown-options" role="listbox">
+            <div class="dropdown-option selected" data-model-id="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet</div>
+            <div class="dropdown-option" data-model-id="gpt-4o">GPT-4o</div>
+            <div class="dropdown-option" data-model-id="o3">o3</div>
+            <div class="dropdown-option" data-model-id="gemini/gemini-2.5-flash">Gemini 2.5 Flash</div>
+            <div class="dropdown-option" data-model-id="gemini-2.5-pro">Gemini 2.5 Pro</div>
+          </div>
+        </div>
+        <div class="budget-caption small">Model IDs mapped for backend</div>
+      </div>
+
+      <div class="control-group">
+        <label class="control-label" for="modeMenu">Mode</label>
+        <div class="dropdown-menu" id="modeMenu">
+          <div class="dropdown-button" aria-haspopup="listbox" aria-expanded="false">
+            <span data-mode="no_budget">No budget</span>
+            <span class="dropdown-arrow">▼</span>
+          </div>
+          <div class="dropdown-options" role="listbox">
+            <div class="dropdown-option selected" data-mode="no_budget">No budget</div>
+            <div class="dropdown-option" data-mode="budgeted">Budgeted</div>
+            <div class="dropdown-option" data-mode="question_only">Questions only</div>
+            <div class="dropdown-option" data-mode="instant">Instant</div>
+            <div class="dropdown-option" data-mode="ensemble">Ensemble</div>
+          </div>
+        </div>
+        <div class="budget-caption small" id="modeHint">No budget: cost tracked, not enforced.</div>
+      </div>
+
+      <div class="control-group">
+        <label class="control-label" for="iterations">Iterations</label>
+        <input id="iterations" type="number" class="number-input" value="10" min="1" max="50" aria-label="Max iterations">
+      </div>
+
+      <div class="control-group">
+        <label class="control-label">Budget</label>
+        <div class="budget-display" aria-live="polite">
+          <span class="budget-indicator" id="budgetDot"></span>
+          <div>
+            <div><span class="budget-caption" id="budgetCaption">Cost to date</span></div>
+            <div><span class="budget-value" id="budgetValue">$0</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="status-bar" role="status" aria-live="polite">
+    <span class="status-chip" id="statusConvergence">Ready to start</span>
+    <span class="status-chip" id="statusRound">Round 0/10</span>
+    <span class="status-chip" id="statusBudget">Budget OK • Cost: $0</span>
+    <div class="status-actions">
+      <button class="status-btn" id="forceEscalateBtn" title="Force escalate to next step">Force escalate</button>
+      <button class="status-btn" id="viewAuditBtn" title="Open cost audit">Cost audit</button>
+    </div>
+  </div>
+
+  <div class="main-container">
+    <div class="chat-column">
+      <div class="messages-area" id="messages">
+        <div class="welcome-card">
+          <h2>Welcome to MAI Diagnostic Orchestrator</h2>
+          <p>Choose your diagnostic mode and enter a patient case to begin.</p>
+          
+          <div class="mode-selection">
+            <label class="mode-option">
+              <input type="radio" name="diagnostic-mode" value="interactive" checked>
+              <span class="mode-label">
+                <strong>🧑‍⚕️ Interactive Mode</strong>
+                <small>You act as the gatekeeper, providing test results and clinical data step-by-step</small>
+              </span>
+            </label>
+            <label class="mode-option">
+              <input type="radio" name="diagnostic-mode" value="autonomous">
+              <span class="mode-label">
+                <strong>🤖 Autonomous Demo</strong>
+                <small>System runs complete rhabdomyosarcoma case automatically (research paper example)</small>
+              </span>
+            </label>
+          </div>
+          
+          <textarea id="case-input" class="case-textarea" 
+                    placeholder="Enter patient case... &#10;&#10;Example: A 29-year-old woman was admitted to the hospital because of sore throat and peritonsillar swelling and bleeding. Symptoms did not abate with antimicrobial therapy." 
+                    rows="4"></textarea>
+          
+          <div class="welcome-actions">
+            <button id="start-case-btn" class="primary-btn">Start Diagnostic Session</button>
+            <button id="load-demo-btn" class="secondary-btn">Load Demo Case</button>
+          </div>
+          
+          <div class="demo-info" id="demo-info" style="display: none;">
+            <div class="demo-details">
+              <strong>Autonomous Demo Case:</strong> 29-year-old woman with peritonsillar mass<br>
+              <strong>Expected Diagnosis:</strong> Embryonal rhabdomyosarcoma of the pharynx<br>
+              <strong>Mode:</strong> Complete case with all pathology results provided automatically
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="input-container" id="input-container" style="display: none;">
+        <textarea class="input-field" id="user-input" placeholder="Enter test results or answer questions..." aria-label="Compose message"></textarea>
+        <button class="send-button" id="send-button">Send</button>
+      </div>
+    </div>
+
+    <div class="sidebar-column">
+      <div class="panel-card">
+        <div class="panel-layout">
+          <div class="physicians-row">
+            <div class="agent-node" data-agent="hypothesis">
+              <button class="agent-button" data-agent="hypothesis" aria-pressed="false">🧠</button>
+              <span class="agent-name">Hypothesis</span>
+              <span class="settings-icon" data-agent="hypothesis" title="Settings">⚙</span>
+              <div class="agent-status" data-status="idle">●</div>
+            </div>
+            <div class="agent-node" data-agent="test_chooser">
+              <button class="agent-button" data-agent="test_chooser">🔬</button>
+              <span class="agent-name">Test</span>
+              <span class="settings-icon" data-agent="test_chooser" title="Settings">⚙</span>
+              <div class="agent-status" data-status="idle">●</div>
+            </div>
+            <div class="agent-node" data-agent="challenger">
+              <button class="agent-button" data-agent="challenger">🤔</button>
+              <span class="agent-name">Challenge</span>
+              <span class="settings-icon" data-agent="challenger" title="Settings">⚙</span>
+              <div class="agent-status" data-status="idle">●</div>
+            </div>
+            <div class="agent-node" data-agent="stewardship">
+              <button class="agent-button" data-agent="stewardship">💰</button>
+              <span class="agent-name">Steward</span>
+              <span class="settings-icon" data-agent="stewardship" title="Settings">⚙</span>
+              <div class="agent-status" data-status="idle">●</div>
+            </div>
+            <div class="agent-node" data-agent="checklist">
+              <button class="agent-button" data-agent="checklist">✅</button>
+              <span class="agent-name">Check</span>
+              <span class="settings-icon" data-agent="checklist" title="Settings">⚙</span>
+              <div class="agent-status" data-status="idle">●</div>
+            </div>
+          </div>
+          <div class="coordinator-node">
+            <div class="agent-node" data-agent="consensus">
+              <button class="agent-button" data-agent="consensus">🎯</button>
+              <span class="agent-name">Coordinator</span>
+              <span class="settings-icon" data-agent="consensus" title="Settings">⚙</span>
+              <div class="agent-status" data-status="idle">●</div>
+            </div>
+          </div>
+        </div>
+        <div class="agent-detail" id="agent-detail">
+          <div class="detail-title">Agent Panel</div>
+          <div class="detail-content">
+            Select an agent above to view real-time thinking and decision processes. Each specialist contributes unique expertise to the diagnostic process.
+          </div>
+        </div>
+      </div>
+
+      <div class="decision-card" id="decisionCard" style="display: none;">
+        <div class="decision-header">
+          <div class="decision-label">Panel Consensus</div>
+          <button class="decision-toggle" id="toggleRationale" aria-expanded="false">Show rationale</button>
+        </div>
+        <div class="decision-body">
+          <span class="action-badge" id="actionBadge">READY</span>
+          <div class="decision-details" id="decisionDetails">
+            Waiting for panel consensus...
+          </div>
+          <button class="proceed-button" id="reviewBtn" style="display: none;">Review &amp; Send to Gatekeeper</button>
+        </div>
+      </div>
+
+      <div class="analysis-card">
+        <div class="analysis-header">Case Analysis</div>
+        <ul class="diagnosis-list" id="diagnosisList">
+          <li class="diagnosis-placeholder">
+            Start a case to see differential diagnosis with Bayesian confidence levels.
+          </li>
+        </ul>
+
+        <div class="cost-row">
+          <div>
+            <div class="cost-label">Total Cost</div>
+            <div class="cost-breakdown">Breakdown will appear during diagnosis</div>
+          </div>
+          <div class="cost-value" id="totalCost">$0</div>
+        </div>
+      </div>
+
+      <div class="judge-card" id="judgeCard">
+        <div class="judge-header">
+          <div class="judge-title">Judge</div>
+          <button class="decision-toggle" id="toggleJudge" aria-expanded="false">Use Clinician-as-Judge</button>
+        </div>
+        <div class="judge-body" id="judgeBody">
+          <div class="judge-row">
+            <label for="judgeMode">Mode</label>
+            <div class="judge-toggle" id="judgeMode">
+              <label><input type="radio" name="judgeSel" value="auto" checked/> Auto-judge</label>
+              <label><input type="radio" name="judgeSel" value="clinician"/> Clinician</label>
+            </div>
+          </div>
+          <div class="judge-row">
+            <label for="judgeScore">Accuracy score</label>
+            <input id="judgeScore" type="range" min="1" max="5" value="4" />
+            <span class="small" id="judgeScoreLabel">4 / 5</span>
+          </div>
+          <div class="field">
+            <label for="judgeJust">Justification</label>
+            <textarea id="judgeJust" class="textarea" placeholder="Brief justification (e.g., matches clinical picture; key counter-evidence minimal)."></textarea>
+          </div>
+          <div class="inline-actions">
+            <button class="btn" id="judgeCancel">Cancel</button>
+            <button class="btn primary" id="judgeSave">Save Judgment</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop hidden" id="settings-modal">
+    <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modalTitle">Agent Settings</h3>
+        <button class="modal-close" aria-label="Close">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-field">
+          <div class="modal-field-label">Model Override</div>
+          <div class="dropdown-menu">
+            <div class="dropdown-button"><span>Use Global Model</span><span class="dropdown-arrow">▼</span></div>
+            <div class="dropdown-options">
+              <div class="dropdown-option selected">Use Global Model</div>
+              <div class="dropdown-option">Claude 3.5 Sonnet</div>
+              <div class="dropdown-option">GPT-4o</div>
+              <div class="dropdown-option">Gemini 1.5 Pro</div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-field">
+          <div class="modal-field-label">System Prompt</div>
+          <button class="edit-toggle" aria-controls="promptArea">Edit</button>
+          <textarea id="promptArea" class="prompt-textarea" readonly>Loading agent prompt...</textarea>
+          <div class="inline-actions" style="margin-top:8px;">
+            <button class="btn" id="promptCopy">Copy</button>
+            <button class="btn" id="promptReset">Reset to default</button>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="modal-button">Cancel</button>
+        <button class="modal-button primary">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+    <div class="modal-backdrop hidden" id="api-key-modal">
+        <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="apiKeyModalTitle">
+            <div class="modal-header">
+                <h3 class="modal-title" id="apiKeyModalTitle">API Key Management</h3>
+                <button class="modal-close" aria-label="Close">×</button>
+            </div>
+            <div class="modal-body">
+                <p class="modal-description">Enter your API keys below. They will be stored locally in your project folder.</p>
+                <div class="modal-field">
+                    <label for="openai-key-input" class="modal-field-label">OpenAI API Key</label>
+                    <input type="password" id="openai-key-input" class="input" placeholder="sk-...">
+                </div>
+                <div class="modal-field">
+                    <label for="anthropic-key-input" class="modal-field-label">Anthropic API Key</label>
+                    <input type="password" id="anthropic-key-input" class="input" placeholder="sk-ant-...">
+                </div>
+                <div class="modal-field">
+                    <label for="gemini-key-input" class="modal-field-label">Gemini API Key</label>
+                    <input type="password" id="gemini-key-input" class="input" placeholder="AIzaSy...">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-button" id="api-key-cancel">Cancel</button>
+                <button class="modal-button primary" id="api-key-save">Save Keys</button>
+            </div>
+        </div>
+    </div>
+
+
+  <div class="drawer-backdrop hidden" id="drawerBackdrop"></div>
+  <aside class="drawer" id="gateDrawer" aria-labelledby="drawerTitle">
+    <div class="drawer-header">
+      <div class="drawer-title" id="drawerTitle">Gatekeeper Review</div>
+      <button class="modal-close" id="drawerClose" aria-label="Close">×</button>
+    </div>
+    <div class="drawer-body">
+      <div class="field">
+        <label>Action</label>
+        <div class="inline-actions">
+          <button class="btn" data-gk="approve">Approve</button>
+          <button class="btn" data-gk="modify">Modify</button>
+          <button class="btn" data-gk="reject">Reject</button>
+          <button class="btn" data-gk="alt">Request alternative</button>
+        </div>
+      </div>
+      <div class="field">
+        <label for="orderName">Order / Question</label>
+        <input id="orderName" class="input" value=""/>
+      </div>
+      <div class="field">
+        <label for="orderNotes">Notes to Coordinator (optional)</label>
+        <textarea id="orderNotes" class="textarea" placeholder="Reasoning, adjustments, constraints…"></textarea>
+      </div>
+      <div class="field" id="resultsBlock">
+        <label>Enter results (if already available)</label>
+        <div class="field"><input class="input" placeholder="Test results..."/></div>
+        <div class="field">
+          <label for="fileAttach">Attach document (optional)</label>
+          <input id="fileAttach" class="input" type="file"/>
+        </div>
+      </div>
+    </div>
+    <div class="drawer-footer">
+      <button class="btn" id="drawerCancel">Cancel</button>
+      <button class="btn primary" id="drawerSend">Send to Gatekeeper</button>
+    </div>
+  </aside>
+</body>
+</html>
